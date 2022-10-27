@@ -46,3 +46,4 @@ nikolaynikolaevichmyasnikov TST-7 #comment check SC-38 #time 10m t #to-do
 Test 2852 after import Jira cloud
 Test 2852 after import n2->n3 TD2852-1
 Test 2852 after import n2->n3 + update default groups
+Test 2852 after import n2->n2 + update default groups
