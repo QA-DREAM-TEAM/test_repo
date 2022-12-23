@@ -51,3 +51,5 @@ Test2 2852 after import n2->n2 + update default groups
 Rt 14112022
 commit with build in main 
 test 19122022 GITCL-3174
+
+RT-8 Test for AU investigation on AU Jira
