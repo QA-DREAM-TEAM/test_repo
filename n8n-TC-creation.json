@@ -1,0 +1,461 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -64,
+        768
+      ],
+      "id": "a3c3b70c-8fed-49f3-b9f9-61fd81f0dcc1",
+      "name": "When chat message received",
+      "webhookId": "6104d0f0-76f5-49ea-b978-5fc066975a46"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "issueKey": "={{ $json.body.issueKey }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        96
+      ],
+      "id": "b71ee852-3569-417a-86f3-f7863c4bb647",
+      "name": "Get an issue",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "MfG586vsr8gi25ps",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "754afb2b-6e84-423f-805a-c49dc1570883",
+              "name": "fields.key",
+              "value": "={{ $json.key }}",
+              "type": "string"
+            },
+            {
+              "id": "374bd38a-a00e-4d2d-980b-6e0c9b418836",
+              "name": "fields.summary",
+              "value": "={{ $input.first().json.fields.summary }}",
+              "type": "string"
+            },
+            {
+              "id": "7cac8698-dbb2-45b4-bcaf-ebbe485f7551",
+              "name": "fields.description",
+              "value": "={{ $json.fields.description }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        0
+      ],
+      "id": "20abb998-90ce-4bb5-a73a-1e45a2b65de9",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\n\nconst parentDescription = input.fields.description || \"NO_DESCRIPTION_PROVIDED.\";\nconst parentKey =  input.fields.key || \"UNKNOWN_KEY\";\n//const parentSummary = $input.first().json.fields.issuelinks[2].inwardIssue.fields.summary || \"UNKNOWN\";\n//const parentSummary = $input.first().json.fields.summary || \"UNKNOWN\";\nconst parentSummary =  input.fields.summary || \"UNKNOWN_PARENT_SUMMARY\";\nconst childDescriptions = (input.issues || []).map((issue, i) => {\n  const key = issue.key || `Child-${i + 1}`;\n  const summary = issue.fields.summary || \"No summary\";\n  const description = issue.fields.description || \"No description provided.\";\n  return `Child ${i + 1} [${key}] - ${summary}:\\n${description}`;\n}).join('\\n\\n');\n\nconst combined = `\nParent Issue [${parentKey}] \\n Parent Summary: ${parentSummary} \\n Description:\n${parentDescription}\n\nChild Issues Descriptions:\\n\n${childDescriptions || \"No child issues found.\"}\n`;\n\nreturn [\n  {\n    json: {\n      combinedDescription: combined.trim()\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        112
+      ],
+      "id": "7b655b53-ca03-4431-a0fc-6a4ca89fb554",
+      "name": "Join descriptions"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $input.first().json.output;\n\n// Extraer la línea con el Parent Issue\nconst parentLineMatch = text.match(/^Parent Issue \\[(.+?)\\]/m);\nconst parentKey = parentLineMatch ? parentLineMatch[1] : \"UNKNOWN_PARENT\";\n\n// Extraer el Parent Summary (hasta antes de \\n\\n)\nconst parentSummaryMatch = text.match(/Parent Summary:\\s*([\\s\\S]*?)(?=\\n\\n)/);\nconst parentSummary = parentSummaryMatch ? parentSummaryMatch[1].trim() : \"UNKNOWN_PARENT_SUMMARY\";\n\n// Eliminar tanto la línea del parent issue como la del summary del texto\nlet cleanedText = text\n  .replace(/^Parent Issue \\[.+?\\]\\s*/m, '')\n  .replace(/Parent Summary:\\s*([\\s\\S]*?)(?=\\n\\n)/, '');\n\n// Separar los test cases\nconst cases = cleanedText.split('Test Case ID:').filter(s => s.trim() !== '');\n\n// Construir el array con toda la info\nconst result = [\n  { json: { parentKey, parentSummary } },\n  ...cases.map(c => ({\n    json: { testCaseText: 'Test Case ID:' + c.trim() }\n  }))\n];\n\n// ⬅️ Esto es lo que faltaba\nreturn result;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        112
+      ],
+      "id": "b6d34ba6-8a14-486e-8176-0fa76ebabfe2",
+      "name": "Split test cases"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* global items */\n\n// This function is designed for an n8n Code Node.\n// It parses a text block of test cases, formats it into Atlassian Document Format (ADF),\n// and structures the final JSON object for a Jira node.\n\n// --- ADF Helper Functions ---\n\n// Creates a text node for ADF\nconst createText = (text, marks = []) => ({ type: 'text', text, marks });\n\n// Creates a paragraph node for ADF\nconst createParagraph = (content) => ({ type: 'paragraph', content });\n\n// Creates a list item node for ADF\nconst createListItem = (content) => ({\n  type: 'listItem',\n  content: [createParagraph(Array.isArray(content) ? content : [createText(content)])],\n});\n\n\n/**\n * Parses a block of text for a single test case and converts it into an array of ADF nodes.\n * @param {string} block - The text block for a single test case.\n * @returns {Array} An array of ADF nodes representing the test case.\n */\nfunction parseTestCaseBlock(block) {\n  const lines = block.trim().split('\\n').filter(line => line.trim() !== '');\n  if (lines.length === 0) {\n    return [];\n  }\n\n  const adfNodes = [];\n  let currentSection = null;\n  /** @type {string[]} */\n  let listItems = []; // To accumulate lines that should be in a list\n\n  // --- CORRECTED ID/TITLE LOGIC ---\n  const titleLineIndex = lines.findIndex(l => l.startsWith('Title:'));\n  const titleLine = titleLineIndex !== -1 ? lines[titleLineIndex] : '';\n  const titleText = titleLine.replace('Title:', '').trim();\n  \n  // The ID is everything before the Title line.\n  const idLines = lines.slice(0, titleLineIndex === -1 ? 1 : titleLineIndex);\n  const idText = idLines.join(' ').replace('Test Case ID:', '').trim();\n  \n  const fullTitle = `${idText}: ${titleText}`;\n  \n  if (fullTitle.trim() !== ':') {\n    adfNodes.push({\n      type: 'heading',\n      attrs: { level: 3 },\n      content: [createText(fullTitle)],\n    });\n  }\n  // --- END CORRECTION ---\n\n  // Function to process and add any accumulated list items to the ADF nodes\n  const processList = () => {\n    if (listItems.length > 0) {\n      // Heuristic: If lines start with a number/dot or a dash, treat as a list.\n      const isOrdered = /^\\d+\\.\\s/.test(listItems[0]);\n      const isUnordered = /^\\s*-\\s/.test(listItems[0]);\n\n      if (isOrdered || isUnordered) {\n        const listNode = {\n          type: isOrdered ? 'orderedList' : 'bulletList',\n          content: listItems.map(item => createListItem(item.replace(/^\\s*[-*]\\s*|^\\d+\\.\\s*/, ''))),\n        };\n        adfNodes.push(listNode);\n      } else {\n        // If not a list, treat as simple paragraphs\n        listItems.forEach(item => adfNodes.push(createParagraph([createText(item)])));\n      }\n      listItems = [];\n    }\n  };\n\n  // Adjust the loop to start AFTER the title\n  const loopStartIndex = titleLineIndex === -1 ? 1 : titleLineIndex + 1;\n  for (let i = loopStartIndex; i < lines.length; i++) {\n    const line = lines[i];\n\n    // More robust regex for section titles like \"Environment Requirement:\"\n    const sectionMatch = line.match(/^([\\w\\s()]+):(.*)/);\n    if (sectionMatch) {\n      processList(); // Process any pending list from the previous section.\n      currentSection = sectionMatch[1].trim();\n      const sectionValue = sectionMatch[2].trim();\n\n      // Add the section title as a paragraph with bold text\n      adfNodes.push(createParagraph([createText(`${currentSection}:`, [{ type: 'strong' }])]));\n      \n      if (sectionValue) {\n        // If there is content on the same line as the title, add it to the list buffer\n        listItems.push(sectionValue);\n      }\n    } else if (currentSection) {\n      // This line is part of the current section (e.g., a step in Test Steps)\n      listItems.push(line.trim());\n    }\n  }\n\n  // Process any remaining list items after the loop\n  processList();\n\n  // Add a horizontal rule for visual separation between test cases\n  adfNodes.push({ type: 'rule' });\n\n  return adfNodes;\n}\n\n// --- Main Logic ---\n\ntry {\n  // Find the parent information from the input items by checking for property existence.\n  const parentInfo = items.find(item => item.json && item.json.hasOwnProperty('parentKey'))?.json;\n  if (!parentInfo) {\n    throw new Error(\"Could not find an input item with 'parentKey'.\");\n  }\n\n  // Find the test case text block from the input items by checking for property existence.\n  const testCaseItem = items.find(item => item.json && item.json.hasOwnProperty('testCaseText'))?.json;\n  if (!testCaseItem || typeof testCaseItem.testCaseText !== 'string') {\n    throw new Error(\"Could not find an input item with a 'testCaseText' string.\");\n  }\n  const rawText = testCaseItem.testCaseText;\n\n  // Split the raw text into individual test case blocks. This regex is key.\n  // It splits on a blank line that is followed by \"Test Case\"\n  const testCaseBlocks = rawText.split(/\\n\\n(?=Test Case\\s\\d{2})/).filter(block => block.trim() !== '');\n  \n  // If the initial split results in 0 blocks (e.g. no newlines), try another method\n  if (testCaseBlocks.length <= 1) {\n      // Fallback split for texts without double newlines between cases\n      const tempBlocks = rawText.split(/(?=Test Case\\s\\d{2})/)\n      // The first element might be just \"Test Case ID:\", so we merge it with the second\n      if (tempBlocks.length > 1 && tempBlocks[0].trim().toLowerCase() === 'test case id:') {\n          tempBlocks[1] = tempBlocks[0] + tempBlocks[1];\n          tempBlocks.shift(); // remove the first element\n      }\n      testCaseBlocks.splice(0, testCaseBlocks.length, ...tempBlocks); // replace with new blocks\n  }\n\n\n  /** @type {any[]} */\n  let adfContent = [];\n  for (const block of testCaseBlocks) {\n    const nodes = parseTestCaseBlock(block);\n    adfContent = adfContent.concat(nodes);\n  }\n\n  // Remove the last horizontal rule for a cleaner look\n  if (adfContent.length > 0 && adfContent[adfContent.length - 1].type === 'rule') {\n    adfContent.pop();\n  }\n  \n  // Extract the project key from the parent issue's key. Example: \"PROJ-123\" -> \"PROJ\"\n  const projectKey = parentInfo.parentKey.split('-')[0];\n\n  // Construct the final Jira-compatible JSON object\n  return [\n    {\n      json: {\n        project: {\n          key: projectKey\n        },\n        parent: {\n            key: parentInfo.parentKey\n        },\n        issuetype: {\n            name: 'Test Case'\n        },\n        summary: `[TEST CASES] Test Cases for ${parentInfo.parentSummary}`,\n        description: {\n          type: \"doc\",\n          version: 1,\n          content: adfContent\n        }\n      }\n    }\n  ];\n\n} catch (error) {\n  // Return a proper error object for n8n, handling unknown error types.\n  if (error instanceof Error) {\n    return {\n      error: {\n        message: `Error in n8n Code Node: ${error.message}`,\n        stack: error.stack\n      }\n    };\n  } else {\n    return {\n      error: {\n        message: `An unknown error occurred: ${String(error)}`\n      }\n    };\n  }\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1264,
+        112
+      ],
+      "id": "ae4399e6-1f64-4f7c-8161-17fd4fb9c4e4",
+      "name": "Enrich fields for jira"
+    },
+    {
+      "parameters": {
+        "url": "=https://nikolaym.atlassian.net/rest/api/2/search?jql=parent={{ $json.key }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "jiraSoftwareCloudApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "key,summary, description"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        0,
+        208
+      ],
+      "id": "3403b080-dbeb-4bfc-a56d-bcca3a06296e",
+      "name": "Get Child Issues",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "MfG586vsr8gi25ps",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://nikolaym.atlassian.net/rest/api/3/issue",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "jiraSoftwareCloudApi",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "=fields.project.key",
+              "value": "={{ $json.project.key }}"
+            },
+            {
+              "name": "fields.summary",
+              "value": "={{ $json.summary }}"
+            },
+            {
+              "name": "fields.description",
+              "value": "={{ $json.description }}"
+            },
+            {
+              "name": "fields.issuetype.name",
+              "value": "Sub-task"
+            },
+            {
+              "name": "fields.parent.key",
+              "value": "={{ $json.parent.key }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1488,
+        112
+      ],
+      "id": "c199b0e3-8bc0-4be8-bf09-f3dea91a8ac2",
+      "name": "Send to Jira",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "MfG586vsr8gi25ps",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "36fbdca8-9a5a-43b7-a504-7239269ea5f9",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -592,
+        128
+      ],
+      "id": "1570f91c-b266-4767-b03c-78271ea83a16",
+      "name": "Webhook",
+      "webhookId": "36fbdca8-9a5a-43b7-a504-7239269ea5f9"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"message\": \"Test cases created properly. Test case URL: https://localhost:5678/browse/{{ $json.key }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1696,
+        112
+      ],
+      "id": "e39133eb-f438-4a9e-b504-7d60fab0ce0a",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        224,
+        112
+      ],
+      "id": "9247bf42-d0ba-4df5-a0ff-830a8f2c1841",
+      "name": "Merge descriptions"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        752,
+        320
+      ],
+      "id": "9b6fae15-00a6-40b0-aa32-08a8efcf04cb",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "eBGg1fK9kkYorvc1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert QA Engineer with ISTQB certification and deep knowledge of functional testing techniques including boundary value analysis, equivalence partitioning, decision tables, state transition testing, and exploratory testing. Only add functional test, avoid security tests, if the feature can create performance issues please add this type of test cases, but only if they are needed. Output only the test cases, create between 4 and 8 test cases. Do not include any introductions, explanations, or additional commentary. Add at the beginning the line with the \"Parent Issue\" string then Parent Issue key wrapped with square brackets, then \"Parent Summary\" string and then Parent Summary.\n\nGiven the following Jira issue description:\n\n{{ $json.combinedDescription }}\n\nYour task is to generate a comprehensive set of clear, actionable, and well-structured functional test cases. Each test case should include:\n\n- A unique Test Case ID, the test case ID should be in the format \"Test Case 01, Test Case 02, ...\"  \n- A concise Title\n- A \"Missing information\" section that must be included If you detect that there is not enough information to cover critical test cases.\n- Preconditions (if any)  \n- Test Steps (detailed and numbered)  \n- Expected Results  \n- Any relevant test data or environment requirements  \n- Coverage of positive, negative, boundary, and edge cases where applicable\n\nFocus on ensuring completeness and traceability to the requirements described in the issue. Avoid vague or redundant test cases. Use your expertise to anticipate potential failure points and include them.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        672,
+        112
+      ],
+      "id": "93ffa649-77f9-4d4d-9dc3-86dd6e6aaa5c",
+      "name": "Execute Prompt"
+    },
+    {
+      "parameters": {
+        "url": "=https://nikolaym.atlassian.net/rest/api/2/issue/{{ $input.first().json.body.issueKey }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "jiraSoftwareCloudApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "summary, description"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -320,
+        -48
+      ],
+      "id": "aea9fa71-1687-4347-8646-35135b7514cc",
+      "name": "Get an issue'",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "MfG586vsr8gi25ps",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get an issue": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Child Issues",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Merge descriptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Join descriptions": {
+      "main": [
+        [
+          {
+            "node": "Execute Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split test cases": {
+      "main": [
+        [
+          {
+            "node": "Enrich fields for jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich fields for jira": {
+      "main": [
+        [
+          {
+            "node": "Send to Jira",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Child Issues": {
+      "main": [
+        [
+          {
+            "node": "Merge descriptions",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get an issue'",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get an issue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Jira": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge descriptions": {
+      "main": [
+        [
+          {
+            "node": "Join descriptions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Execute Prompt",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute Prompt": {
+      "main": [
+        [
+          {
+            "node": "Split test cases",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get an issue'": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "67869eb6-5d9b-487a-bb78-efdfc6811d34",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "089593b0375f52cffd2e682594e43cdd96459883230a04bef809490471c267bb"
+  },
+  "id": "x7iFKeYe7D32Harv",
+  "tags": []
+}
