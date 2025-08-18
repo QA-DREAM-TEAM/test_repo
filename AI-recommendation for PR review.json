@@ -1,0 +1,1233 @@
+{
+  "name": "AI-recommendation for PR review",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "github/pr",
+        "options": {}
+      },
+      "name": "GitHub Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        592
+      ],
+      "id": "1099ec68-ef10-43c8-9204-e5fe99e1324a",
+      "webhookId": "27f6b85c-b0cf-4ec6-bb6a-843cc0878d9c"
+    },
+    {
+      "parameters": {
+        "functionCode": "const body = items[0].json.body;\nif (!body.action || !['opened', 'reopened', 'ready_for_review', \n\"review_requested\"].includes(body.action)) {\n  return []; // skip\n}\nconst pr = body.pull_request || {};\nconst prSender = body.sender || {};\n\nconst owner = pr.base?.repo?.owner?.login;\nconst repo = pr.base?.repo?.name;\nconst prNumber = pr.number;\nconst prUrl = pr.url;\nconst prHeadSha = pr.head?.sha;\nconst prBaseSha = pr.base?.sha;\nconst prAuthorLogin = pr.user?.login;\nconst prAuthorId = pr.user?.id;\nconst prSenderLogin = prSender?.login;\nconst title = pr.title || '';\nconst branch = pr.head?.ref || '';\nconst m = `${title} ${branch}`.match(/([A-Z][A-Z0-9]+-\\d+)/g);\nconst issueKey = m ? m[0] : null;\nreturn [{ json: { owner, repo, prNumber, prUrl, prHeadSha, prBaseSha, prAuthorLogin, prAuthorId, prSenderLogin, issueKey } }];\n\n\n/*const body = items[0].json.body;\nif (!body.action || !['opened', 'ready_for_review'].includes(body.action)) {\n  return []; // skip\n}\nconst pr = body.pull_request || {};\nconst owner = pr.base?.repo?.owner?.login;\nconst repo = pr.base?.repo?.name;\nconst prNumber = pr.number;\nconst prHeadSha = pr.head?.sha;\nconst prAuthorLogin = pr.user?.login;\nconst title = pr.title || '';\nconst branch = pr.head?.ref || '';\nconst m = `${title} ${branch}`.match(/([A-Z][A-Z0-9]+-\\d+)/g);\nconst issueKey = m ? m[0] : null;\nreturn [{ json: { owner, repo, prNumber, prHeadSha, prAuthorLogin, issueKey } }];\n*/"
+      },
+      "name": "Extract PR Data",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -816,
+        592
+      ],
+      "id": "e1f6654a-8473-4e63-9612-ef9c9aaa246d"
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$json.owner}}/{{$json.repo}}/pulls/{{$json.prNumber}}/files",
+        "options": {
+          "batchInterval": 0
+        }
+      },
+      "name": "Get PR Files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        640
+      ],
+      "id": "2c0bb343-9a69-4156-8899-1180d18cf019",
+      "executeOnce": false,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$items(\"Extract PR Data\")[0].json.owner}}/{{$items(\"Extract PR Data\")[0].json.repo}}/contents/CODEOWNERS?ref={{$items(\"Extract PR Data\")[0].json.prHeadSha}} ",
+        "options": {
+          "ignoreResponseCode": false
+        }
+      },
+      "name": "Get CODEOWNERS (root)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        320
+      ],
+      "id": "16f92466-9fd6-44c7-a5b2-0a072310029b",
+      "alwaysOutputData": false,
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$json.owner}}/{{$json.repo}}/contents/.github/CODEOWNERS?ref={{$json.prHeadSha}} ",
+        "options": {
+          "ignoreResponseCode": false
+        }
+      },
+      "name": "Get CODEOWNERS (.github)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        480
+      ],
+      "id": "4c5b24d7-04cf-4741-a477-b75f4cb159d0",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$json.owner}}/{{$json.repo}}/contents/docs/CODEOWNERS?ref={{$json.prHeadSha}} ",
+        "options": {
+          "ignoreResponseCode": true
+        }
+      },
+      "name": "Get CODEOWNERS (docs)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        176
+      ],
+      "id": "97ba9e82-114d-4e0a-88a8-44cc65c745ed",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Чтобы код выполнился только один раз, а не на каждый item\nif ($itemIndex > 0) {\n  return [];\n}\n\n// Функция выбирает первый item, у которого есть content\nfunction pickWithContent(list) {\n  for (const i of list) {\n    if (i && i.json && i.json.content) {\n      return i.json;\n    }\n  }\n  return null;\n}\n\n// Забираем результаты всех трёх нод (берём только первый item из каждой)\nconst root = $items('Get CODEOWNERS (root)', 0, 0)[0];\nconst gh   = $items('Get CODEOWNERS (.github)', 0, 0)[0];\nconst docs = $items('Get CODEOWNERS (docs)', 0, 0)[0];\n\n// Ищем, где реально найден файл\nconst found = pickWithContent([root, gh, docs]);\n\nif (found) {\n  return [\n    {\n      json: {\n        source: 'codeowners',\n        content: found.content,\n      }\n    }\n  ];\n}\n\nreturn [\n  {\n    json: {\n      source: 'no_codeowners',\n    }\n  }\n];\n\n// Возьмём первый успешный ответ с content\n/*function pickWithContent(list) {\n  for (const i of list) {\n    if (i && i.json && i.json.content) return i.json;\n  }\n  return null;\n}\nconst root = $items('Get CODEOWNERS (root)', 0, 0)[0];\nconst gh = $items('Get CODEOWNERS (.github)', 0, 0)[0];\nconst docs = $items('Get CODEOWNERS (docs)', 0, 0)[0];\nconst found = pickWithContent([root, gh, docs]);\nif (found) {\n  return [{ json: { source: 'codeowners', content: found.content } }];\n}\nreturn [{ json: { source: 'no_codeowners' } }];\n*/"
+      },
+      "name": "Select CODEOWNERS",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        320
+      ],
+      "id": "3662fdb0-ffaf-4782-8853-48a53bc82f1c",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "functionCode": "/*\nconst files = $items('Get PR Files', 0, 0).map(i => i.json.filename);\nconst prData = $items('Extract PR Data', 0, 0)[0].json;\nreturn files.map(f => ({ json: { file: f, owner: prData.owner, repo: prData.repo, prHeadSha: prData.prHeadSha, prAuthorLogin: prData.prAuthorLogin } }));\n*/\n// Получаем входные данные (ваш массив файлов)\nconst inputData = items[0].json;\n\n// Если данные пришли как строка, а не объект\nconst filesData = typeof inputData === 'string' ? JSON.parse(inputData) : inputData;\n\n// Извлекаем имена файлов\nconst fileNames = filesData.map(file => file.filename);\n\n// Получаем данные PR из другого узла\nconst prData = $items('Extract PR Data', 0, 0)[0].json;\n\n// Формируем результат для КАЖДОГО файла\nreturn fileNames.map(filename => ({\n  json: {\n    file: filename,  // Вот это поле было пропущено!\n    owner: prData.owner,\n    repo: prData.repo,\n    prHeadSha: prData.prHeadSha,\n    prAuthorLogin: prData.prAuthorLogin\n  }\n}));"
+      },
+      "name": "Split Files",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        640
+      ],
+      "id": "ed8c0a81-e4f6-4b54-b017-0530d5b62008"
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$json.owner}}/{{$json.repo}}/commits?path={{$json.file}}&sha={{$json.prHeadSha}} ",
+        "options": {}
+      },
+      "name": "Get File Commits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        640
+      ],
+      "id": "80a6f2e2-8ec5-424c-a896-b8e7ce5d8950",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "basicAuth",
+        "url": "=https://api.github.com/repos/{{$items(\"Extract PR Data\")[0].json.owner}}/{{$items(\"Extract PR Data\")[0].json.repo}}/contributors",
+        "options": {
+          "batchInterval": 0
+        }
+      },
+      "name": "Get Contributors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        816
+      ],
+      "id": "53945430-a87e-49bf-a584-1555e7e7c943",
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "dRbWW73Li0XSnaGH",
+          "name": "nikolay-1986 PAT"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "functionCode": "\n// Сливаем результат из любой ветки (CODEOWNERS/History/Contributors)\nconst pick = (label) => {\n  const it = $items(label, 0, 0);\n  if (it && it[0] && it[0].json && Array.isArray(it[0].json.ghReviewers) && it[0].json.ghReviewers.length) {\n    return it[0].json;\n  }\n  return null;\n};\nconst byCO = pick('Codeowners');\nconst byHist = pick('History');\nconst byCont = pick('Contributors');\nconst chosen = byCO || byHist || byCont || { ghReviewers: [] };\nreturn [{ json: chosen }];\n"
+      },
+      "name": "Select Final Reviewers",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        128,
+        640
+      ],
+      "id": "b6ac346e-ddf5-4930-87bb-5d9b6165a639",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Imagine you are a software development team lead used Atlassian Jira Cloud for management. \nYour team has implemented a GitHub feature that analyzes commit history, CODEOWNERS file entries, and repository contributors to recommend potential PR reviewers. \n\nWrite a friendly comment from \"Git integration for Jira\" with emoji on {{$items(\"Extract PR Data\")[0].json.issueKey}} that author {{$items(\"Extract PR Data\")[0].json.prSenderLogin}} {{ $('GitHub Webhook').first().json.body.action }} the pull request. Provide the URL {{ $('GitHub Webhook').first().json.body.pull_request.html_url }} for this pull request. \n\nSuggest them who from {{ $items(\"Select Final Reviewers\")[0].json.ghReviewers }} could be assigned to review the PR. Start your text message with tag [AI-Hint]. Do not use mentions for suggested revierers.\n\nYour text should be presented in Atlassian Document Format. Put <body> tag at the beginning and </body> at the end of output. Do not use Markdown format in your output. \n\nNext example is for you, use this json for your calculations:\n<body>\n{\n  \"type\": \"doc\",\n  \"version\": 1,\n  \"content\": [\n    {\n      \"type\": \"paragraph\",\n      \"content\": [\n        {\n          \"type\": \"text\",\n          \"text\": \"[AI-recomendation] \"\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" GiHub user\"\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" {{$items(\"Extract PR Data\")[0].json.prSenderLogin}}\",\n          \"marks\": [\n             {\n              \"type\": \"strong\"\n            }\n          ]\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" {{ $('GitHub Webhook').first().json.body.action }} \" \n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" Pull Request\",\n          \"marks\": [\n            {\n              \"type\": \"link\",\n              \"attrs\": {\n              \"href\": \"{{ $('GitHub Webhook').first().json.body.pull_request.html_url }}\",\n              \"title\": \"Pull Request\"\n            }\n          ]\n        },\n        {\n          \"type\": \"emoji\",\n          \"attrs\": {\n            \"shortName\": \":sparkles:\",\n            \"id\": \"1f4a5\",\n            \"text\": \":sparkles:\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \"\\nBased on commit history, CODEOWNERS file entries, and repository contributors, \"\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" Git integration for Jira \",\n          \"marks\": [\n             {\n              \"type\": \"strong\"\n            }\n          ]\n        },\n       {\n          \"type\": \"text\",\n          \"text\": \"recommends assigning the current work to {{ $items(\"Select Final Reviewers\")[0].json.ghReviewers }} \",\n          \"marks\": [\n             {\n              \"type\": \"strong\"\n            }\n          ]\n        }, \n        {\n          \"type\": \"text\",\n          \"text\": \"for code review.\\n\"\n        },\n        {\n          \"type\": \"emoji\",\n          \"attrs\": {\n            \"shortName\": \":robot_face:\",\n            \"id\": \"1f916\",\n            \"text\": \":robot_face:\"\n          }\n        },\n        {\n          \"type\": \"text\",\n          \"text\": \" Let me know if you need a hand with the assignment! \"\n        },\n        {\n          \"type\": \"emoji\",\n          \"attrs\": {\n            \"shortName\": \":rocket:\",\n            \"id\": \"1f680\",\n            \"text\": \":rocket:\"\n          }\n        }        \n      ]\n    }\n  ]\n}\n</body>\n",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        352,
+        816
+      ],
+      "id": "8c3e7dd1-04b0-40f7-b71d-dd54a2d9ec17",
+      "name": "AI Agent",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        352,
+        1056
+      ],
+      "id": "7168fd54-0bee-423a-a83f-8789e158918a",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "AY5OWHIbOHvqjx9N",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "issueKey": "={{ $('Extract PR Data').first().json.issueKey }}",
+        "jsonParameters": true,
+        "commentJson": "={{ $json.output.removeMarkdown() }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.jira",
+      "typeVersion": 1,
+      "position": [
+        640,
+        816
+      ],
+      "id": "e5cdfa53-9227-43bb-9066-2f5712453fbf",
+      "name": "Add a comment",
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "7NGKNhBGMCG4TslN",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "functionCode": "\nconst prData = $items('Extract PR Data', 0, 0)[0].json;\nconst authors = {};\nfor (const item of items) {\n  const commits = Array.isArray(item.json) ? item.json : [];\n  for (const commit of commits) {\n    const login = commit.author?.login;\n    if (login && login !== prData.prAuthorLogin) {\n      authors[login] = (authors[login] || 0) + 1;\n    }\n  }\n}\nconst sorted = Object.entries(authors).sort((a,b)=>b[1]-a[1]).map(([login]) => login);\nconst ghReviewers = sorted.slice(0, 2);\n//return [{ json: { ghReviewers, reason: 'history' } }];\nif (ghReviewers && ghReviewers.length > 0) {\n // return [items[0]]; // уже нашли по истории\n  return [{ json: { ghReviewers, reason: 'history' } }];\n}\nreturn []; // иначе пойдём в codeowners\n"
+      },
+      "name": "History",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        640
+      ],
+      "id": "ccfdd17b-2cd0-4c7e-bd5d-f28c187b6ec6",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "functionCode": "\nfunction decode(b64){ return Buffer.from(b64, 'base64').toString('utf8'); }\nfunction globToRegExp(glob) {\n  let re = glob.replace(/[.+^${}()|[\\]\\\\]/g, '\\\\$&')\n               .replace(/\\*\\*/g, '.*')\n               .replace(/\\*/g, '[^/]*')\n               .replace(/\\?/g, '.');\n  return new RegExp(`^${re}$`);\n}\nfunction parseCodeowners(text){\n  return text.split('\\n')\n    .map(l => l.trim())\n    .filter(l => l && !l.startsWith('#'))\n    .map(l => {\n      const parts = l.split(/\\s+/);\n      return { pattern: parts[0], owners: parts.slice(1).map(o => o.replace(/^@/, '')) };\n    });\n}\nconst prData = $items('Extract PR Data', 0, 0)[0].json;\nconst prFiles = $items('Get PR Files', 0, 0).map(i => i.json.filename);\nif ($json.source !== 'codeowners') {\n  return [{ json: { ghReviewers: [], reason: 'no_codeowners' } }];\n}\nconst codeownersTxt = decode($json.content);\nconst rules = parseCodeowners(codeownersTxt);\nconst score = {};\nfor (const f of prFiles) {\n  for (const r of rules) {\n    const re = globToRegExp(r.pattern);\n    if (re.test(f)) {\n      for (const o of r.owners) {\n        if (o !== prData.prAuthorLogin) score[o] = (score[o] || 0) + 1;\n      }\n    }\n  }\n}\nconst sorted = Object.entries(score).sort((a,b)=>b[1]-a[1]).map(([owner]) => owner);\nconst ghReviewers = sorted.slice(0, 2);\n//return [{ json: { ghReviewers, reason: 'codeowners' } }];\nif (ghReviewers && ghReviewers.length > 0) {\n  return [{ json: { ghReviewers, reason: 'codeowners' } }];\n}\nreturn []; // иначе пойдём в исторические владельцы\n"
+      },
+      "name": "Codeowners",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        320
+      ],
+      "id": "2b273dcb-dab1-4298-8b4e-5c46bccecd6c",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "functionCode": "\nconst prData = $items('Extract PR Data', 0, 0)[0].json;\nconst contributors = (items[0].json || []).filter(c => c.login !== prData.prAuthorLogin);\nconst sorted = contributors.sort((a,b) => (b.contributions || 0) - (a.contributions || 0)).map(c => c.login);\nconst ghReviewers = sorted.slice(0, 2);\nreturn [{ json: { ghReviewers, reason: 'contributors' } }];\n"
+      },
+      "name": "Contributors",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        816
+      ],
+      "id": "e3ceae4f-2581-45dc-9459-7b205a3ec646",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        128,
+        816
+      ],
+      "id": "208fdcb3-fc4f-4716-a81e-8865dbb95305",
+      "name": "Noop"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -224,
+        320
+      ],
+      "id": "338077bc-4bf1-4f25-87aa-a624173b8af4",
+      "name": "Noop1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        816
+      ],
+      "id": "f61dd346-6472-4648-91e6-9cbf27ccf3bd",
+      "name": "Noop2"
+    }
+  ],
+  "pinData": {
+    "GitHub Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "nikolaym.app.n8n.cloud",
+            "user-agent": "GitHub-Hookshot/7f0b353",
+            "content-length": "27354",
+            "accept": "*/*",
+            "accept-encoding": "gzip, br",
+            "cdn-loop": "cloudflare; loops=1; subreqs=1",
+            "cf-connecting-ip": "140.82.115.8",
+            "cf-ew-via": "15",
+            "cf-ipcountry": "US",
+            "cf-ray": "970ea365c0512d0f-IAD",
+            "cf-visitor": "{\"scheme\":\"https\"}",
+            "cf-worker": "n8n.cloud",
+            "content-type": "application/json",
+            "x-forwarded-for": "140.82.115.8, 172.71.223.114",
+            "x-forwarded-host": "nikolaym.app.n8n.cloud",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "traefik-prod-users-gwc-22-6ccfbd4f8c-958md",
+            "x-github-delivery": "4f9d2270-7a91-11f0-914a-aeacf3c68fc8",
+            "x-github-event": "pull_request",
+            "x-github-hook-id": "564071829",
+            "x-github-hook-installation-target-id": "534630142",
+            "x-github-hook-installation-target-type": "repository",
+            "x-is-trusted": "yes",
+            "x-real-ip": "140.82.115.8"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "action": "reopened",
+            "number": 33,
+            "pull_request": {
+              "url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33",
+              "id": 2749804030,
+              "node_id": "PR_kwDOH93O_s6j5q3-",
+              "html_url": "https://github.com/QA-DREAM-TEAM/test_repo/pull/33",
+              "diff_url": "https://github.com/QA-DREAM-TEAM/test_repo/pull/33.diff",
+              "patch_url": "https://github.com/QA-DREAM-TEAM/test_repo/pull/33.patch",
+              "issue_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/33",
+              "number": 33,
+              "state": "open",
+              "locked": false,
+              "title": "TST-10 Add new demo file",
+              "user": {
+                "login": "QA-Martin",
+                "id": 113182524,
+                "node_id": "U_kgDOBr8HPA",
+                "avatar_url": "https://avatars.githubusercontent.com/u/113182524?v=4",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/QA-Martin",
+                "html_url": "https://github.com/QA-Martin",
+                "followers_url": "https://api.github.com/users/QA-Martin/followers",
+                "following_url": "https://api.github.com/users/QA-Martin/following{/other_user}",
+                "gists_url": "https://api.github.com/users/QA-Martin/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/QA-Martin/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/QA-Martin/subscriptions",
+                "organizations_url": "https://api.github.com/users/QA-Martin/orgs",
+                "repos_url": "https://api.github.com/users/QA-Martin/repos",
+                "events_url": "https://api.github.com/users/QA-Martin/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/QA-Martin/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false
+              },
+              "body": "TST-10 Add new demo file",
+              "created_at": "2025-08-15T22:00:28Z",
+              "updated_at": "2025-08-16T11:08:17Z",
+              "closed_at": null,
+              "merged_at": null,
+              "merge_commit_sha": null,
+              "assignee": null,
+              "assignees": [],
+              "requested_reviewers": [
+                {
+                  "login": "nikolay-1986",
+                  "id": 67991242,
+                  "node_id": "MDQ6VXNlcjY3OTkxMjQy",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/67991242?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/nikolay-1986",
+                  "html_url": "https://github.com/nikolay-1986",
+                  "followers_url": "https://api.github.com/users/nikolay-1986/followers",
+                  "following_url": "https://api.github.com/users/nikolay-1986/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/nikolay-1986/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/nikolay-1986/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/nikolay-1986/subscriptions",
+                  "organizations_url": "https://api.github.com/users/nikolay-1986/orgs",
+                  "repos_url": "https://api.github.com/users/nikolay-1986/repos",
+                  "events_url": "https://api.github.com/users/nikolay-1986/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/nikolay-1986/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                {
+                  "login": "Krakeneer",
+                  "id": 113181960,
+                  "node_id": "U_kgDOBr8FCA",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/113181960?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/Krakeneer",
+                  "html_url": "https://github.com/Krakeneer",
+                  "followers_url": "https://api.github.com/users/Krakeneer/followers",
+                  "following_url": "https://api.github.com/users/Krakeneer/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/Krakeneer/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/Krakeneer/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/Krakeneer/subscriptions",
+                  "organizations_url": "https://api.github.com/users/Krakeneer/orgs",
+                  "repos_url": "https://api.github.com/users/Krakeneer/repos",
+                  "events_url": "https://api.github.com/users/Krakeneer/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/Krakeneer/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                {
+                  "login": "ISSArtQA",
+                  "id": 113186572,
+                  "node_id": "U_kgDOBr8XDA",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/113186572?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/ISSArtQA",
+                  "html_url": "https://github.com/ISSArtQA",
+                  "followers_url": "https://api.github.com/users/ISSArtQA/followers",
+                  "following_url": "https://api.github.com/users/ISSArtQA/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/ISSArtQA/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/ISSArtQA/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/ISSArtQA/subscriptions",
+                  "organizations_url": "https://api.github.com/users/ISSArtQA/orgs",
+                  "repos_url": "https://api.github.com/users/ISSArtQA/repos",
+                  "events_url": "https://api.github.com/users/ISSArtQA/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/ISSArtQA/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                {
+                  "login": "everybugtester",
+                  "id": 115102577,
+                  "node_id": "U_kgDOBtxTcQ",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/115102577?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/everybugtester",
+                  "html_url": "https://github.com/everybugtester",
+                  "followers_url": "https://api.github.com/users/everybugtester/followers",
+                  "following_url": "https://api.github.com/users/everybugtester/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/everybugtester/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/everybugtester/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/everybugtester/subscriptions",
+                  "organizations_url": "https://api.github.com/users/everybugtester/orgs",
+                  "repos_url": "https://api.github.com/users/everybugtester/repos",
+                  "events_url": "https://api.github.com/users/everybugtester/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/everybugtester/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                }
+              ],
+              "requested_teams": [],
+              "labels": [],
+              "milestone": null,
+              "draft": false,
+              "commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33/commits",
+              "review_comments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33/comments",
+              "review_comment_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/comments{/number}",
+              "comments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/33/comments",
+              "statuses_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/statuses/08c86c05b496d02c140ac9bdef8ef258d9ade97b",
+              "head": {
+                "label": "QA-DREAM-TEAM:TST-10-demonstrate-ci-cd-for-jira",
+                "ref": "TST-10-demonstrate-ci-cd-for-jira",
+                "sha": "08c86c05b496d02c140ac9bdef8ef258d9ade97b",
+                "user": {
+                  "login": "QA-DREAM-TEAM",
+                  "id": 113184127,
+                  "node_id": "O_kgDOBr8Nfw",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/QA-DREAM-TEAM",
+                  "html_url": "https://github.com/QA-DREAM-TEAM",
+                  "followers_url": "https://api.github.com/users/QA-DREAM-TEAM/followers",
+                  "following_url": "https://api.github.com/users/QA-DREAM-TEAM/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/QA-DREAM-TEAM/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/QA-DREAM-TEAM/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/QA-DREAM-TEAM/subscriptions",
+                  "organizations_url": "https://api.github.com/users/QA-DREAM-TEAM/orgs",
+                  "repos_url": "https://api.github.com/users/QA-DREAM-TEAM/repos",
+                  "events_url": "https://api.github.com/users/QA-DREAM-TEAM/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/QA-DREAM-TEAM/received_events",
+                  "type": "Organization",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                "repo": {
+                  "id": 534630142,
+                  "node_id": "R_kgDOH93O_g",
+                  "name": "test_repo",
+                  "full_name": "QA-DREAM-TEAM/test_repo",
+                  "private": false,
+                  "owner": {
+                    "login": "QA-DREAM-TEAM",
+                    "id": 113184127,
+                    "node_id": "O_kgDOBr8Nfw",
+                    "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+                    "gravatar_id": "",
+                    "url": "https://api.github.com/users/QA-DREAM-TEAM",
+                    "html_url": "https://github.com/QA-DREAM-TEAM",
+                    "followers_url": "https://api.github.com/users/QA-DREAM-TEAM/followers",
+                    "following_url": "https://api.github.com/users/QA-DREAM-TEAM/following{/other_user}",
+                    "gists_url": "https://api.github.com/users/QA-DREAM-TEAM/gists{/gist_id}",
+                    "starred_url": "https://api.github.com/users/QA-DREAM-TEAM/starred{/owner}{/repo}",
+                    "subscriptions_url": "https://api.github.com/users/QA-DREAM-TEAM/subscriptions",
+                    "organizations_url": "https://api.github.com/users/QA-DREAM-TEAM/orgs",
+                    "repos_url": "https://api.github.com/users/QA-DREAM-TEAM/repos",
+                    "events_url": "https://api.github.com/users/QA-DREAM-TEAM/events{/privacy}",
+                    "received_events_url": "https://api.github.com/users/QA-DREAM-TEAM/received_events",
+                    "type": "Organization",
+                    "user_view_type": "public",
+                    "site_admin": false
+                  },
+                  "html_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+                  "description": null,
+                  "fork": false,
+                  "url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo",
+                  "forks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/forks",
+                  "keys_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/keys{/key_id}",
+                  "collaborators_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/collaborators{/collaborator}",
+                  "teams_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/teams",
+                  "hooks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/hooks",
+                  "issue_events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/events{/number}",
+                  "events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/events",
+                  "assignees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/assignees{/user}",
+                  "branches_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/branches{/branch}",
+                  "tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/tags",
+                  "blobs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/blobs{/sha}",
+                  "git_tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/tags{/sha}",
+                  "git_refs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/refs{/sha}",
+                  "trees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/trees{/sha}",
+                  "statuses_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/statuses/{sha}",
+                  "languages_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/languages",
+                  "stargazers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/stargazers",
+                  "contributors_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contributors",
+                  "subscribers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscribers",
+                  "subscription_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscription",
+                  "commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/commits{/sha}",
+                  "git_commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/commits{/sha}",
+                  "comments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/comments{/number}",
+                  "issue_comment_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/comments{/number}",
+                  "contents_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contents/{+path}",
+                  "compare_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/compare/{base}...{head}",
+                  "merges_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/merges",
+                  "archive_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/{archive_format}{/ref}",
+                  "downloads_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/downloads",
+                  "issues_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues{/number}",
+                  "pulls_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls{/number}",
+                  "milestones_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/milestones{/number}",
+                  "notifications_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/notifications{?since,all,participating}",
+                  "labels_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/labels{/name}",
+                  "releases_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/releases{/id}",
+                  "deployments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/deployments",
+                  "created_at": "2022-09-09T12:17:58Z",
+                  "updated_at": "2025-08-15T15:18:16Z",
+                  "pushed_at": "2025-08-15T21:58:25Z",
+                  "git_url": "git://github.com/QA-DREAM-TEAM/test_repo.git",
+                  "ssh_url": "git@github.com:QA-DREAM-TEAM/test_repo.git",
+                  "clone_url": "https://github.com/QA-DREAM-TEAM/test_repo.git",
+                  "svn_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+                  "homepage": null,
+                  "size": 20415,
+                  "stargazers_count": 0,
+                  "watchers_count": 0,
+                  "language": null,
+                  "has_issues": true,
+                  "has_projects": true,
+                  "has_downloads": true,
+                  "has_wiki": true,
+                  "has_pages": false,
+                  "has_discussions": false,
+                  "forks_count": 2,
+                  "mirror_url": null,
+                  "archived": false,
+                  "disabled": false,
+                  "open_issues_count": 4,
+                  "license": null,
+                  "allow_forking": true,
+                  "is_template": false,
+                  "web_commit_signoff_required": false,
+                  "topics": [],
+                  "visibility": "public",
+                  "forks": 2,
+                  "open_issues": 4,
+                  "watchers": 0,
+                  "default_branch": "main",
+                  "allow_squash_merge": true,
+                  "allow_merge_commit": true,
+                  "allow_rebase_merge": true,
+                  "allow_auto_merge": false,
+                  "delete_branch_on_merge": false,
+                  "allow_update_branch": false,
+                  "use_squash_pr_title_as_default": false,
+                  "squash_merge_commit_message": "COMMIT_MESSAGES",
+                  "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+                  "merge_commit_message": "PR_TITLE",
+                  "merge_commit_title": "MERGE_MESSAGE"
+                }
+              },
+              "base": {
+                "label": "QA-DREAM-TEAM:TST-11-checking-webhook",
+                "ref": "TST-11-checking-webhook",
+                "sha": "ebba9441ac48a9ad49c9e3da70d6e206f517ad1e",
+                "user": {
+                  "login": "QA-DREAM-TEAM",
+                  "id": 113184127,
+                  "node_id": "O_kgDOBr8Nfw",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/QA-DREAM-TEAM",
+                  "html_url": "https://github.com/QA-DREAM-TEAM",
+                  "followers_url": "https://api.github.com/users/QA-DREAM-TEAM/followers",
+                  "following_url": "https://api.github.com/users/QA-DREAM-TEAM/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/QA-DREAM-TEAM/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/QA-DREAM-TEAM/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/QA-DREAM-TEAM/subscriptions",
+                  "organizations_url": "https://api.github.com/users/QA-DREAM-TEAM/orgs",
+                  "repos_url": "https://api.github.com/users/QA-DREAM-TEAM/repos",
+                  "events_url": "https://api.github.com/users/QA-DREAM-TEAM/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/QA-DREAM-TEAM/received_events",
+                  "type": "Organization",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                "repo": {
+                  "id": 534630142,
+                  "node_id": "R_kgDOH93O_g",
+                  "name": "test_repo",
+                  "full_name": "QA-DREAM-TEAM/test_repo",
+                  "private": false,
+                  "owner": {
+                    "login": "QA-DREAM-TEAM",
+                    "id": 113184127,
+                    "node_id": "O_kgDOBr8Nfw",
+                    "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+                    "gravatar_id": "",
+                    "url": "https://api.github.com/users/QA-DREAM-TEAM",
+                    "html_url": "https://github.com/QA-DREAM-TEAM",
+                    "followers_url": "https://api.github.com/users/QA-DREAM-TEAM/followers",
+                    "following_url": "https://api.github.com/users/QA-DREAM-TEAM/following{/other_user}",
+                    "gists_url": "https://api.github.com/users/QA-DREAM-TEAM/gists{/gist_id}",
+                    "starred_url": "https://api.github.com/users/QA-DREAM-TEAM/starred{/owner}{/repo}",
+                    "subscriptions_url": "https://api.github.com/users/QA-DREAM-TEAM/subscriptions",
+                    "organizations_url": "https://api.github.com/users/QA-DREAM-TEAM/orgs",
+                    "repos_url": "https://api.github.com/users/QA-DREAM-TEAM/repos",
+                    "events_url": "https://api.github.com/users/QA-DREAM-TEAM/events{/privacy}",
+                    "received_events_url": "https://api.github.com/users/QA-DREAM-TEAM/received_events",
+                    "type": "Organization",
+                    "user_view_type": "public",
+                    "site_admin": false
+                  },
+                  "html_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+                  "description": null,
+                  "fork": false,
+                  "url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo",
+                  "forks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/forks",
+                  "keys_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/keys{/key_id}",
+                  "collaborators_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/collaborators{/collaborator}",
+                  "teams_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/teams",
+                  "hooks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/hooks",
+                  "issue_events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/events{/number}",
+                  "events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/events",
+                  "assignees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/assignees{/user}",
+                  "branches_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/branches{/branch}",
+                  "tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/tags",
+                  "blobs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/blobs{/sha}",
+                  "git_tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/tags{/sha}",
+                  "git_refs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/refs{/sha}",
+                  "trees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/trees{/sha}",
+                  "statuses_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/statuses/{sha}",
+                  "languages_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/languages",
+                  "stargazers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/stargazers",
+                  "contributors_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contributors",
+                  "subscribers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscribers",
+                  "subscription_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscription",
+                  "commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/commits{/sha}",
+                  "git_commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/commits{/sha}",
+                  "comments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/comments{/number}",
+                  "issue_comment_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/comments{/number}",
+                  "contents_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contents/{+path}",
+                  "compare_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/compare/{base}...{head}",
+                  "merges_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/merges",
+                  "archive_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/{archive_format}{/ref}",
+                  "downloads_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/downloads",
+                  "issues_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues{/number}",
+                  "pulls_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls{/number}",
+                  "milestones_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/milestones{/number}",
+                  "notifications_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/notifications{?since,all,participating}",
+                  "labels_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/labels{/name}",
+                  "releases_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/releases{/id}",
+                  "deployments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/deployments",
+                  "created_at": "2022-09-09T12:17:58Z",
+                  "updated_at": "2025-08-15T15:18:16Z",
+                  "pushed_at": "2025-08-15T21:58:25Z",
+                  "git_url": "git://github.com/QA-DREAM-TEAM/test_repo.git",
+                  "ssh_url": "git@github.com:QA-DREAM-TEAM/test_repo.git",
+                  "clone_url": "https://github.com/QA-DREAM-TEAM/test_repo.git",
+                  "svn_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+                  "homepage": null,
+                  "size": 20415,
+                  "stargazers_count": 0,
+                  "watchers_count": 0,
+                  "language": null,
+                  "has_issues": true,
+                  "has_projects": true,
+                  "has_downloads": true,
+                  "has_wiki": true,
+                  "has_pages": false,
+                  "has_discussions": false,
+                  "forks_count": 2,
+                  "mirror_url": null,
+                  "archived": false,
+                  "disabled": false,
+                  "open_issues_count": 4,
+                  "license": null,
+                  "allow_forking": true,
+                  "is_template": false,
+                  "web_commit_signoff_required": false,
+                  "topics": [],
+                  "visibility": "public",
+                  "forks": 2,
+                  "open_issues": 4,
+                  "watchers": 0,
+                  "default_branch": "main",
+                  "allow_squash_merge": true,
+                  "allow_merge_commit": true,
+                  "allow_rebase_merge": true,
+                  "allow_auto_merge": false,
+                  "delete_branch_on_merge": false,
+                  "allow_update_branch": false,
+                  "use_squash_pr_title_as_default": false,
+                  "squash_merge_commit_message": "COMMIT_MESSAGES",
+                  "squash_merge_commit_title": "COMMIT_OR_PR_TITLE",
+                  "merge_commit_message": "PR_TITLE",
+                  "merge_commit_title": "MERGE_MESSAGE"
+                }
+              },
+              "_links": {
+                "self": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33"
+                },
+                "html": {
+                  "href": "https://github.com/QA-DREAM-TEAM/test_repo/pull/33"
+                },
+                "issue": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/33"
+                },
+                "comments": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/33/comments"
+                },
+                "review_comments": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33/comments"
+                },
+                "review_comment": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/comments{/number}"
+                },
+                "commits": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls/33/commits"
+                },
+                "statuses": {
+                  "href": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/statuses/08c86c05b496d02c140ac9bdef8ef258d9ade97b"
+                }
+              },
+              "author_association": "CONTRIBUTOR",
+              "auto_merge": null,
+              "active_lock_reason": null,
+              "merged": false,
+              "mergeable": null,
+              "rebaseable": null,
+              "mergeable_state": "unknown",
+              "merged_by": null,
+              "comments": 0,
+              "review_comments": 0,
+              "maintainer_can_modify": false,
+              "commits": 1,
+              "additions": 1,
+              "deletions": 0,
+              "changed_files": 1
+            },
+            "repository": {
+              "id": 534630142,
+              "node_id": "R_kgDOH93O_g",
+              "name": "test_repo",
+              "full_name": "QA-DREAM-TEAM/test_repo",
+              "private": false,
+              "owner": {
+                "login": "QA-DREAM-TEAM",
+                "id": 113184127,
+                "node_id": "O_kgDOBr8Nfw",
+                "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/QA-DREAM-TEAM",
+                "html_url": "https://github.com/QA-DREAM-TEAM",
+                "followers_url": "https://api.github.com/users/QA-DREAM-TEAM/followers",
+                "following_url": "https://api.github.com/users/QA-DREAM-TEAM/following{/other_user}",
+                "gists_url": "https://api.github.com/users/QA-DREAM-TEAM/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/QA-DREAM-TEAM/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/QA-DREAM-TEAM/subscriptions",
+                "organizations_url": "https://api.github.com/users/QA-DREAM-TEAM/orgs",
+                "repos_url": "https://api.github.com/users/QA-DREAM-TEAM/repos",
+                "events_url": "https://api.github.com/users/QA-DREAM-TEAM/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/QA-DREAM-TEAM/received_events",
+                "type": "Organization",
+                "user_view_type": "public",
+                "site_admin": false
+              },
+              "html_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+              "description": null,
+              "fork": false,
+              "url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo",
+              "forks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/forks",
+              "keys_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/keys{/key_id}",
+              "collaborators_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/collaborators{/collaborator}",
+              "teams_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/teams",
+              "hooks_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/hooks",
+              "issue_events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/events{/number}",
+              "events_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/events",
+              "assignees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/assignees{/user}",
+              "branches_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/branches{/branch}",
+              "tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/tags",
+              "blobs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/blobs{/sha}",
+              "git_tags_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/tags{/sha}",
+              "git_refs_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/refs{/sha}",
+              "trees_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/trees{/sha}",
+              "statuses_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/statuses/{sha}",
+              "languages_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/languages",
+              "stargazers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/stargazers",
+              "contributors_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contributors",
+              "subscribers_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscribers",
+              "subscription_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/subscription",
+              "commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/commits{/sha}",
+              "git_commits_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/git/commits{/sha}",
+              "comments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/comments{/number}",
+              "issue_comment_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues/comments{/number}",
+              "contents_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/contents/{+path}",
+              "compare_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/compare/{base}...{head}",
+              "merges_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/merges",
+              "archive_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/{archive_format}{/ref}",
+              "downloads_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/downloads",
+              "issues_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/issues{/number}",
+              "pulls_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/pulls{/number}",
+              "milestones_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/milestones{/number}",
+              "notifications_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/notifications{?since,all,participating}",
+              "labels_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/labels{/name}",
+              "releases_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/releases{/id}",
+              "deployments_url": "https://api.github.com/repos/QA-DREAM-TEAM/test_repo/deployments",
+              "created_at": "2022-09-09T12:17:58Z",
+              "updated_at": "2025-08-15T15:18:16Z",
+              "pushed_at": "2025-08-15T21:58:25Z",
+              "git_url": "git://github.com/QA-DREAM-TEAM/test_repo.git",
+              "ssh_url": "git@github.com:QA-DREAM-TEAM/test_repo.git",
+              "clone_url": "https://github.com/QA-DREAM-TEAM/test_repo.git",
+              "svn_url": "https://github.com/QA-DREAM-TEAM/test_repo",
+              "homepage": null,
+              "size": 20415,
+              "stargazers_count": 0,
+              "watchers_count": 0,
+              "language": null,
+              "has_issues": true,
+              "has_projects": true,
+              "has_downloads": true,
+              "has_wiki": true,
+              "has_pages": false,
+              "has_discussions": false,
+              "forks_count": 2,
+              "mirror_url": null,
+              "archived": false,
+              "disabled": false,
+              "open_issues_count": 4,
+              "license": null,
+              "allow_forking": true,
+              "is_template": false,
+              "web_commit_signoff_required": false,
+              "topics": [],
+              "visibility": "public",
+              "forks": 2,
+              "open_issues": 4,
+              "watchers": 0,
+              "default_branch": "main",
+              "custom_properties": {}
+            },
+            "organization": {
+              "login": "QA-DREAM-TEAM",
+              "id": 113184127,
+              "node_id": "O_kgDOBr8Nfw",
+              "url": "https://api.github.com/orgs/QA-DREAM-TEAM",
+              "repos_url": "https://api.github.com/orgs/QA-DREAM-TEAM/repos",
+              "events_url": "https://api.github.com/orgs/QA-DREAM-TEAM/events",
+              "hooks_url": "https://api.github.com/orgs/QA-DREAM-TEAM/hooks",
+              "issues_url": "https://api.github.com/orgs/QA-DREAM-TEAM/issues",
+              "members_url": "https://api.github.com/orgs/QA-DREAM-TEAM/members{/member}",
+              "public_members_url": "https://api.github.com/orgs/QA-DREAM-TEAM/public_members{/member}",
+              "avatar_url": "https://avatars.githubusercontent.com/u/113184127?v=4",
+              "description": ""
+            },
+            "sender": {
+              "login": "nikolay-1986",
+              "id": 67991242,
+              "node_id": "MDQ6VXNlcjY3OTkxMjQy",
+              "avatar_url": "https://avatars.githubusercontent.com/u/67991242?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/nikolay-1986",
+              "html_url": "https://github.com/nikolay-1986",
+              "followers_url": "https://api.github.com/users/nikolay-1986/followers",
+              "following_url": "https://api.github.com/users/nikolay-1986/following{/other_user}",
+              "gists_url": "https://api.github.com/users/nikolay-1986/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/nikolay-1986/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/nikolay-1986/subscriptions",
+              "organizations_url": "https://api.github.com/users/nikolay-1986/orgs",
+              "repos_url": "https://api.github.com/users/nikolay-1986/repos",
+              "events_url": "https://api.github.com/users/nikolay-1986/events{/privacy}",
+              "received_events_url": "https://api.github.com/users/nikolay-1986/received_events",
+              "type": "User",
+              "user_view_type": "public",
+              "site_admin": false
+            }
+          },
+          "webhookUrl": "https://nikolaym.app.n8n.cloud/webhook-test/github/pr",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "GitHub Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract PR Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PR Data": {
+      "main": [
+        [
+          {
+            "node": "Get CODEOWNERS (root)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get PR Files",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get CODEOWNERS (docs)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get CODEOWNERS (.github)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Contributors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get CODEOWNERS (root)": {
+      "main": [
+        [
+          {
+            "node": "Select CODEOWNERS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get CODEOWNERS (.github)": {
+      "main": [
+        [
+          {
+            "node": "Select CODEOWNERS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Get CODEOWNERS (docs)": {
+      "main": [
+        [
+          {
+            "node": "Select CODEOWNERS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get PR Files": {
+      "main": [
+        [
+          {
+            "node": "Split Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select CODEOWNERS": {
+      "main": [
+        [
+          {
+            "node": "Noop1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Files": {
+      "main": [
+        [
+          {
+            "node": "Get File Commits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get File Commits": {
+      "main": [
+        [
+          {
+            "node": "History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Contributors": {
+      "main": [
+        [
+          {
+            "node": "Noop2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select Final Reviewers": {
+      "main": [
+        []
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Add a comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "History": {
+      "main": [
+        [
+          {
+            "node": "Select Final Reviewers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Codeowners": {
+      "main": [
+        [
+          {
+            "node": "Select Final Reviewers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contributors": {
+      "main": [
+        [
+          {
+            "node": "Select Final Reviewers",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Noop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Noop": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Noop1": {
+      "main": [
+        [
+          {
+            "node": "Codeowners",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Noop2": {
+      "main": [
+        [
+          {
+            "node": "Contributors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v0",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": 180
+  },
+  "versionId": "ec847022-693d-47d3-9f78-c23b47529364",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8cd13cd01b2e6a918bee70493ceba155707db9cdd964d18c50a06cbe9971b7c3"
+  },
+  "id": "q3wMVyFLDcHOTABq",
+  "tags": []
+}
