@@ -33,6 +33,7 @@ krakeneer typed here! TST-7 #comment SC-26 #time 10m t #to-do
 nmyasnikov issart typed here! TST-7 #comment SC-27 #time 10m t #to-do
 nikolaynikolaevichmyasnikov typed here TST-7 #comment SC-28 #time 10m t #to-do
 shtirlic typed here! TST-7 #comment check SC-29 #time 10m t #to-do
+RT-8 Test for AU investigation on EU Jira.
 everybugtester typed here! TST-7 #comment check SC-30 #time 10m t #to-do
 After delete support project
 nikolaym bbb typed here! TST-7 #comment SC-31 #time 10m t #to-do
@@ -49,3 +50,14 @@ Test 2852 after import n2->n3 + update default groups
 Test 2852 after import n2->n2 + update default groups
 Test2 2852 after import n2->n2 + update default groups
 TST-5 Author and reviewers test - verification completed
+Rt 14112022
+commit with build in main 
+test 19122022 GITCL-3174
+
+RT-8 Test for AU investigation on AU Jira
+RT-8 Test for AU investigation on AU PROD Jira
+RT-4 #comment test WH for EU-west-1 25122022
+RT-4 #comment test WH for EU-west-1 25122022 after fix #1
+RT-8 #comment smoke test 29122022 #done
+RT-9 #comment release test 29122022 #done
+RT-11 #comment check display on 11012023 RB page #in
