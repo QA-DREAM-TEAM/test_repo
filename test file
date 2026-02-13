@@ -49,6 +49,7 @@ Test 2852 after import n2->n3 TD2852-1
 Test 2852 after import n2->n3 + update default groups
 Test 2852 after import n2->n2 + update default groups
 Test2 2852 after import n2->n2 + update default groups
+TST-5 Author and reviewers test - verification completed
 Rt 14112022
 commit with build in main 
 test 19122022 GITCL-3174
