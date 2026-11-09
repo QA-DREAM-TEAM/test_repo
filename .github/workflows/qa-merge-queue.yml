@@ -1,0 +1,22 @@
+# QA stand for GitLens merge queue verification (gitkraken/vscode-gitlens #5991 / #6127).
+# Runs only for pull requests into qa/mq-base and for its merge queue.
+name: QA merge queue check
+on:
+  pull_request:
+    branches: [qa/mq-base]
+  merge_group:
+    types: [checks_requested]
+jobs:
+  qa-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        run: |
+          echo "event=${{ github.event_name }}"
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            s=$(cat qa-mq/QUEUE_SLEEP 2>/dev/null || echo 180)
+            echo "sleeping $s s in the merge queue"; sleep "$s"
+            if ls qa-mq/FAIL_IN_QUEUE* >/dev/null 2>&1; then echo "marker found: failing in the merge queue"; exit 1; fi
+          fi
+          echo ok
